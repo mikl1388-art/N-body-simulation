@@ -133,7 +133,7 @@ void main() {
     vec2 worldPos = (vec2(screenPos.x, screenYInverted) - uCameraPan) / uCameraScale;
 
     // 2. Выбираем шаг сетки в зависимости от масштаба (чтобы сетка не была слишком плотной)
-    float densityBias = 1.7; 
+    float densityBias = 2.4; // Должно строго совпадать с константой в скрипте 
     
     // Вычисляем логарифм по основанию 10 от масштаба камеры
     float log10Scale = log(uCameraScale) / log(10.0);
@@ -169,26 +169,29 @@ export function createGradientCanvas() {
     canvas.width = 256; canvas.height = 1;
     const ctx = canvas.getContext('2d');
     const gradient = ctx.createLinearGradient(0, 0, 256, 0);
-    
-    if (SIM_MODE === MODES.SOLAR_SYSTEM) {
-        gradient.addColorStop(0.0, '#ffcc00');
-        gradient.addColorStop(0.2, '#ffffff');
-        gradient.addColorStop(0.5, '#00aaff');
-        gradient.addColorStop(0.8, '#4444ff');
-        gradient.addColorStop(1.0, '#ff4400');
-    } else if (SIM_MODE === MODES.GALAXY) {
-        // Градиент для галактики: белое ядро -> голубые звезды -> фиолетовая периферия
-        gradient.addColorStop(0.0, '#ffffff');
-        gradient.addColorStop(0.1, '#e0f7ff');
-        gradient.addColorStop(0.4, '#00aaff');
-        gradient.addColorStop(0.7, '#7b00ff');
-        gradient.addColorStop(1.0, '#220044');
-    } else {
-        gradient.addColorStop(0.0, '#ff4400');
-        gradient.addColorStop(0.2, '#ffcc00');
-        gradient.addColorStop(0.5, '#ffffff');
-        gradient.addColorStop(0.8, '#88ccff');
-        gradient.addColorStop(1.0, '#0044ff');
+    switch (SIM_MODE) {
+        case MODES.SOLAR_SYSTEM:
+            gradient.addColorStop(0.0, '#ffcc00');
+            gradient.addColorStop(0.2, '#ffffff');
+            gradient.addColorStop(0.5, '#00aaff');
+            gradient.addColorStop(0.8, '#4444ff');
+            gradient.addColorStop(1.0, '#ff4400');
+            break;
+        case MODES.GALAXY:
+            // Градиент для галактики: белое ядро -> голубые звезды -> фиолетовая периферия
+            gradient.addColorStop(0.0, '#ffffff');
+            gradient.addColorStop(0.1, '#e0f7ff');
+            gradient.addColorStop(0.4, '#00aaff');
+            gradient.addColorStop(0.7, '#7b00ff');
+            gradient.addColorStop(1.0, '#220044');
+            break;
+        default:
+            gradient.addColorStop(0.0, '#ff4400');
+            gradient.addColorStop(0.2, '#ffcc00');
+            gradient.addColorStop(0.5, '#ffffff');
+            gradient.addColorStop(0.8, '#88ccff');
+            gradient.addColorStop(1.0, '#0044ff');
+            break;
     }
     ctx.fillStyle = gradient; ctx.fillRect(0, 0, 256, 1);
     return canvas;

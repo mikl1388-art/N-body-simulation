@@ -195,7 +195,7 @@ spawnBtn.addEventListener('click', () => {
 function updateGridStepText() {
     if (!cameraScale) return;
     
-    const densityBias = 1.7; // Должно строго совпадать с константой в шейдере
+    const densityBias = 2.4; // Должно строго совпадать с константой в шейдере
     
     // Аналог формулы на JavaScript
     const log10Scale = Math.log10(cameraScale);
