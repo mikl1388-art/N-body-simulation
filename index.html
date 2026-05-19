@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>GPU N-Body Симуляция: Солнечная Система</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #010208; font-family: sans-serif; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #info {
+            position: absolute; top: 10px; left: 10px; color: #fff;
+            background: rgba(0,0,0,0.6); padding: 10px; border-radius: 5px; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="info">
+    <small>
+        Даблклик — создать тяжелую звезду<br>
+        Колесо — зум, зажать мышкой — двигать<br>
+        <span id="modeInfo">Режим: Солнечная система</span>
+    </small>
+</div>
+<canvas id="simulationCanvas"></canvas>
+
+<script>
+// --- Настройки симуляции ---
+const SOLAR_SYSTEM = false;        // true = Солнечная система, false = генерация случайных звезд
+const MAX_STARS = 16384;          // Выделяем память на GPU с запасом
+let currentStarCount = SOLAR_SYSTEM ? 9 : 10000; // 9 объектов для СС (Солнце + 8 планет)
+
+// Корректируем физику для стабильности орбит планет
+const G = SOLAR_SYSTEM ? 10000.0 : 0.5;           
+const SOFTENING = SOLAR_SYSTEM ? 0.1 : 15;    
+const PHYSICS_DT = SOLAR_SYSTEM ? 0.05 : 0.5;   
+
+const MAX_RARIUS_SCALE = 0.5*10;
+const INITIAL_VELOCITY_SCALE = 1;
+const RANDOM_RADIUS = true;
+
+const NEW_MASS = SOLAR_SYSTEM ? 100.0 : 10000000.0;
+
+const MIN_MASS = 1;
+const MAX_MASS = 12;
+
+const REAL_STEP = 1000 / 60;     
+
+// Размер текстуры под максимальный лимит звезд
+const TEX_SIZE = Math.ceil(Math.sqrt(MAX_STARS));
+
+function createGradientCanvas() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 256, 0);
+    if (SOLAR_SYSTEM) {
+        // Для солнечной системы сделаем спектр от желто-белого к синему
+        gradient.addColorStop(0.0, '#ffcc00');
+        gradient.addColorStop(0.2, '#ffffff');
+        gradient.addColorStop(0.5, '#00aaff');
+        gradient.addColorStop(0.8, '#4444ff');
+        gradient.addColorStop(1.0, '#ff4400');
+    } else {
+        // Для звездного облака от красного (легкие) к синему (тяжелые)
+        gradient.addColorStop(0.0, '#ff4400');
+        gradient.addColorStop(0.2, '#ffcc00');
+        gradient.addColorStop(0.5, '#ffffff');
+        gradient.addColorStop(0.8, '#88ccff');
+        gradient.addColorStop(1.0, '#0044ff');
+    }
+    ctx.fillStyle = gradient; ctx.fillRect(0, 0, 256, 1);
+    return canvas;
+}
+
+function createGradientCanvas() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 256, 0);
+    gradient.addColorStop(0.0, '#ff4400');
+    gradient.addColorStop(0.2, '#ffcc00');
+    gradient.addColorStop(0.5, '#ffffff');
+    gradient.addColorStop(0.8, '#88ccff');
+    gradient.addColorStop(1.0, '#0044ff');
+    ctx.fillStyle = gradient; ctx.fillRect(0, 0, 256, 1);
+    return canvas;
+}
+
+// --- ШЕЙДЕРЫ WEBGL2 ---
+const quadVertexShader = `#version 300 es
+void main() {
+    vec2 uv = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+    gl_Position = vec4(uv * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+const updateVelFragmentShader = `#version 300 es
+precision highp float;
+uniform sampler2D uPosTex;
+uniform sampler2D uVelTex;
+uniform int uCurrentStarCount;
+uniform float uG;
+uniform float uSoftening;
+uniform float uDT;
+out vec4 fragColor;
+
+void main() {
+    ivec2 texSize = textureSize(uPosTex, 0);
+    ivec2 coord = ivec2(gl_FragCoord.xy);
+    int myIndex = coord.y * texSize.x + coord.x;
+
+    vec4 myPosMass = texelFetch(uPosTex, coord, 0);
+    vec4 myVel = texelFetch(uVelTex, coord, 0);
+
+    if (myIndex >= uCurrentStarCount) {
+        fragColor = myVel; return;
+    }
+
+    vec2 p1 = myPosMass.xy;
+    vec2 vel = myVel.xy;
+    vec2 forceAcc = vec2(0.0);
+
+    for (int i = 0; i < uCurrentStarCount; i++) {
+        if (i == myIndex) continue;
+        ivec2 otherCoord = ivec2(i % texSize.x, i / texSize.x);
+        vec4 otherPosMass = texelFetch(uPosTex, otherCoord, 0);
+        
+        vec2 p2 = otherPosMass.xy;
+        float m2 = otherPosMass.z;
+
+        vec2 d = p2 - p1;
+        float distSq = d.x * d.x + d.y * d.y + uSoftening;
+        float dist = sqrt(distSq);
+        
+        float f = (uG * m2) / (distSq * dist);
+        forceAcc += f * d;
+    }
+
+    vel += forceAcc * uDT;
+    fragColor = vec4(vel, 0.0, 0.0);
+}`;
+
+const updatePosFragmentShader = `#version 300 es
+precision highp float;
+uniform sampler2D uPosTex;
+uniform sampler2D uVelTex;
+uniform float uDT;
+out vec4 fragColor;
+
+void main() {
+    ivec2 coord = ivec2(gl_FragCoord.xy);
+    vec4 posMass = texelFetch(uPosTex, coord, 0);
+    vec4 vel = texelFetch(uVelTex, coord, 0);
+
+    vec2 pos = posMass.xy + vel.xy * uDT;
+    fragColor = vec4(pos, posMass.z, posMass.w);
+}`;
+
+const renderVertexShader = `#version 300 es
+precision highp float;
+uniform sampler2D uPosTex;
+uniform int uTexWidth;
+uniform vec2 uCameraPan;
+uniform float uCameraScale;
+uniform vec2 uResolution;
+out float vNormMass;
+
+void main() {
+    int idx = gl_VertexID;
+    ivec2 coord = ivec2(idx % uTexWidth, idx / uTexWidth);
+    vec4 posMass = texelFetch(uPosTex, coord, 0);
+
+    vec2 worldPos = posMass.xy;
+    vNormMass = posMass.w;
+
+    vec2 screenPos = (worldPos * uCameraScale) + uCameraPan;
+    vec2 clipPos = (screenPos / uResolution) * 2.0 - 1.0;
+    clipPos.y = -clipPos.y;
+
+    gl_Position = vec4(clipPos, 0.0, 1.0);
+    
+    // Динамический размер: Солнце и тяжелые объекты крупнее
+    float massScale = clamp(pow(posMass.z, 0.3), 1.0, 30.0);
+    gl_PointSize = clamp(3.0 * sqrt(uCameraScale) * massScale, 2.0, 60.0);
+}`;
+
+const renderFragmentShader = `#version 300 es
+precision highp float;
+in float vNormMass;
+uniform sampler2D uGradientTex;
+out vec4 fragColor;
+
+void main() {
+    float d = distance(gl_PointCoord, vec2(0.5));
+    if (d > 0.5) discard;
+    fragColor = texture(uGradientTex, vec2(vNormMass, 0.5));
+}`;
+
+// --- Инициализация WebGL2 ---
+const canvas = document.getElementById('simulationCanvas');
+const gl = canvas.getContext('webgl2');
+
+gl.getExtension('EXT_color_buffer_float');
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function compileShader(source, type) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+    return s;
+}
+function createProg(vs, fs) {
+    const p = gl.createProgram();
+    gl.attachShader(p, compileShader(vs, gl.VERTEX_SHADER));
+    gl.attachShader(p, compileShader(fs, gl.FRAGMENT_SHADER));
+    gl.linkProgram(p); return p;
+}
+
+const velProg = createProg(quadVertexShader, updateVelFragmentShader);
+const posProg = createProg(quadVertexShader, updatePosFragmentShader);
+const renderProg = createProg(renderVertexShader, renderFragmentShader);
+
+const posData = new Float32Array(TEX_SIZE * TEX_SIZE * 4);
+const velData = new Float32Array(TEX_SIZE * TEX_SIZE * 4);
+
+const screenCenterX = canvas.width / 2;
+const screenCenterY = canvas.height / 2;
+
+// --- ИНИЦИАЛИЗАЦИЯ ДАННЫХ ---
+if (SOLAR_SYSTEM) {
+    document.getElementById('modeInfo').textContent = "Режим: Солнечная Система (8 планет)";
+    
+    // Данные планет. Масса относительно Солнца, Расстояние в АЕ (масштабировано для визуализации)
+    // Массы планет увеличены относительно реальных, чтобы они имели гравитационный вес в симуляции,
+    // но их пропорции между собой строго соблюдены.
+    const M0 = 1; // Базовая масса Солнца
+    const D0 = 15; // Базовое расстояние (1 АЕ)
+    const sunMass = 333000 * M0; // Масса Солнца для расчета гравитации
+    const planets = [
+        { name: "Sun",     distance: 0 * D0,    mass: sunMass,  normColor: 0.0 },
+        { name: "Mercury", distance: 39 * D0,   mass: 0.055 * M0,   normColor: 0.1 },
+        { name: "Venus",   distance: 72 * D0,   mass: 0.815 * M0,   normColor: 0.3 },
+        { name: "Earth",   distance: 100 * D0,  mass: 1.000 * M0,   normColor: 0.5 },
+        { name: "Mars",    distance: 152 * D0,  mass: 0.107 * M0,   normColor: 0.9 },
+        { name: "Jupiter", distance: 520 * D0,  mass: 317.8 * M0,   normColor: 0.2 },
+        { name: "Saturn",  distance: 958 * D0,  mass: 95.2 * M0,    normColor: 0.15 },
+        { name: "Uranus",  distance: 1922 * D0, mass: 14.5 * M0,    normColor: 0.6 },
+        { name: "Neptune", distance: 3005 * D0, mass: 17.1 * M0,    normColor: 0.7 }
+    ];
+
+
+
+    planets.forEach((planet, i) => {
+        const idx = i * 4;
+        
+        // Располагаем по оси X от центра
+        const x = screenCenterX + planet.distance;
+        const y = screenCenterY;
+        
+        posData[idx]     = x;
+        posData[idx + 1] = y;
+        posData[idx + 2] = planet.mass;
+        posData[idx + 3] = planet.normColor; // Позиция в градиенте текстуры
+
+        // Орбитальная скорость по закону Ньютона: v = sqrt(G * M_sun / r)
+        let speed = 0;
+        if (planet.distance > 0) {
+            speed = Math.sqrt((G * sunMass) / planet.distance);
+        }
+
+        // Вектор скорости направлен перпендикулярно радиус-вектору (вверх)
+        velData[idx]     = 0;
+        velData[idx + 1] = speed; 
+    });
+
+} else {
+    document.getElementById('modeInfo').textContent = `Режим: Звездное облако (${currentStarCount} тел)`;
+    // Стандартный генератор случайного диска звезд
+    for (let i = 0; i < currentStarCount; i++) {
+        const angle = (RANDOM_RADIUS ? Math.random() : (i / (currentStarCount + 1))) * Math.PI * 2;
+        const radius = (RANDOM_RADIUS ? Math.random() : 1) * (Math.min(screenCenterX, screenCenterY) * MAX_RARIUS_SCALE);
+        const mass = MIN_MASS + Math.random() * (MAX_MASS - MIN_MASS);
+
+        const idx = i * 4;
+        posData[idx]     = screenCenterX + Math.cos(angle) * radius;
+        posData[idx + 1] = screenCenterY + Math.sin(angle) * radius;
+        posData[idx + 2] = mass;
+        posData[idx + 3] = (mass - MIN_MASS) / (MAX_MASS - MIN_MASS);
+
+        velData[idx]     = -Math.sin(angle) * (Math.sqrt(radius) * INITIAL_VELOCITY_SCALE);
+        velData[idx + 1] =  Math.cos(angle) * (Math.sqrt(radius) * INITIAL_VELOCITY_SCALE);
+    }
+}
+
+function createTex(data) {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, TEX_SIZE, TEX_SIZE, 0, gl.RGBA, gl.FLOAT, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+}
+
+let posTex = [createTex(posData), createTex(null)];
+let velTex = [createTex(velData), createTex(null)];
+let currIdx = 0;
+
+const gradientTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, gradientTex);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, createGradientCanvas());
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+const fb = gl.createFramebuffer();
+
+// --- УПРАВЛЕНИЕ КАМЕРОЙ ---
+// Если это Солнечная система, сразу отдаляем камеру, чтобы видеть дальние планеты
+let cameraX = SOLAR_SYSTEM ? canvas.width * 0.5 : canvas.width * 0.5;
+let cameraY = SOLAR_SYSTEM ? canvas.height * 0.5 : canvas.height * 0.5;
+let cameraScale = SOLAR_SYSTEM ? 0.1 : 0.1;
+let isDragging = false, startX, startY, startCamX, startCamY;
+
+canvas.addEventListener('mousedown', (e) => {
+    isDragging = true; startX = e.clientX; startY = e.clientY;
+    startCamX = cameraX; startCamY = cameraY;
+});
+window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    cameraX = startCamX + (e.clientX - startX);
+    cameraY = startCamY + (e.clientY - startY);
+});
+window.addEventListener('mouseup', () => isDragging = false);
+
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomFactor = 1.1;
+    let newScale = e.deltaY < 0 ? cameraScale * zoomFactor : cameraScale / zoomFactor;
+    //newScale = Math.max(0.01, Math.min(newScale, 50)); // Расширен лимит зума для космоса
+
+    const mouseX = e.offsetX; const mouseY = e.offsetY;
+    const worldX = (mouseX - cameraX) / cameraScale;
+    const worldY = (mouseY - cameraY) / cameraScale;
+
+    cameraScale = newScale;
+    cameraX = mouseX - worldX * cameraScale;
+    cameraY = mouseY - worldY * cameraScale;
+});
+
+// --- ФУНКЦИЯ ДИНАМИЧЕСКОГО ДОБАВЛЕНИЯ ЗВЕЗДЫ ---
+function addNewStar(worldX, worldY, vx, vy, mass) {
+    if (currentStarCount >= MAX_STARS) {
+        alert("Лимит текстуры исчерпан!");
+        return;
+    }
+
+    const index = currentStarCount;
+    const px = index % TEX_SIZE;
+    const py = Math.floor(index / TEX_SIZE);
+    const normMass = 0.5; 
+    
+    const singlePos = new Float32Array([worldX, worldY, mass, normMass]);
+    const singleVel = new Float32Array([vx, vy, 0.0, 0.0]);
+
+    for (let i = 0; i < 2; i++) {
+        gl.bindTexture(gl.TEXTURE_2D, posTex[i]);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, px, py, 1, 1, gl.RGBA, gl.FLOAT, singlePos);
+        gl.bindTexture(gl.TEXTURE_2D, velTex[i]);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, px, py, 1, 1, gl.RGBA, gl.FLOAT, singleVel);
+    }
+
+    currentStarCount++;
+}
+
+canvas.addEventListener('dblclick', (e) => {
+    const mouseX = e.clientX;
+    const mouseY = e.clientY;
+    const worldX = (mouseX - cameraX) / cameraScale;
+    const worldY = (mouseY - cameraY) / cameraScale;
+
+    // В режиме СС спавним адекватную по массе «планету» (например, массой с Землю = 100)
+    const mass = NEW_MASS;
+    addNewStar(worldX, worldY, (Math.random() - 0.5) * INITIAL_VELOCITY_SCALE * 250, (Math.random() - 0.5) * INITIAL_VELOCITY_SCALE * 250, mass);
+});
+
+// --- ТАЙМИНГ ФИЗИКИ ---
+let lastTime = performance.now();
+let accumulator = 0;
+
+// --- РЕНДЕР-ПЕТЛЯ ---
+function loop(currentTime) {
+    let dt = currentTime - lastTime;
+    lastTime = currentTime;
+    if (dt > 250) dt = 250; 
+    accumulator += dt;
+
+    while (accumulator >= REAL_STEP) {
+        let nextIdx = 1 - currIdx;
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+        gl.viewport(0, 0, TEX_SIZE, TEX_SIZE);
+
+        // 1. Считаем СКОРОСТИ
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, velTex[nextIdx], 0);
+        gl.useProgram(velProg);
+        gl.uniform1i(gl.getUniformLocation(velProg, "uCurrentStarCount"), currentStarCount);
+        gl.uniform1f(gl.getUniformLocation(velProg, "uG"), G);
+        gl.uniform1f(gl.getUniformLocation(velProg, "uSoftening"), SOFTENING);
+        gl.uniform1f(gl.getUniformLocation(velProg, "uDT"), PHYSICS_DT);
+        
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTex[currIdx]);
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velTex[currIdx]);
+        gl.uniform1i(gl.getUniformLocation(velProg, "uPosTex"), 0);
+        gl.uniform1i(gl.getUniformLocation(velProg, "uVelTex"), 1);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+        // 2. Считаем ПОЗИЦИИ
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, posTex[nextIdx], 0);
+        gl.useProgram(posProg);
+        gl.uniform1f(gl.getUniformLocation(posProg, "uDT"), PHYSICS_DT);
+        
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTex[currIdx]);
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velTex[nextIdx]);
+        gl.uniform1i(gl.getUniformLocation(posProg, "uPosTex"), 0);
+        gl.uniform1i(gl.getUniformLocation(posProg, "uVelTex"), 1);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+        currIdx = nextIdx;
+        accumulator -= REAL_STEP;
+    }
+
+    // 3. РЕНДЕРИНГ НА ЭКРАН
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0.002, 0.004, 0.015, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    gl.useProgram(renderProg);
+    gl.uniform1i(gl.getUniformLocation(renderProg, "uTexWidth"), TEX_SIZE);
+    gl.uniform2f(gl.getUniformLocation(renderProg, "uCameraPan"), cameraX, cameraY);
+    gl.uniform1f(gl.getUniformLocation(renderProg, "uCameraScale"), cameraScale);
+    gl.uniform2f(gl.getUniformLocation(renderProg, "uResolution"), canvas.width, canvas.height);
+
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTex[currIdx]);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, gradientTex);
+    gl.uniform1i(gl.getUniformLocation(renderProg, "uPosTex"), 0);
+    gl.uniform1i(gl.getUniformLocation(renderProg, "uGradientTex"), 1);
+
+    gl.drawArrays(gl.POINTS, 0, currentStarCount);
+
+    requestAnimationFrame(loop);
+}
+
+requestAnimationFrame((time) => {
+    lastTime = time;
+    loop(time);
+});
+</script>
+</body>
+</html>
