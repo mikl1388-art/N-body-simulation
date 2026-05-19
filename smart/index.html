@@ -1,91 +1,172 @@
 <!-- index.html -->
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <title>GPU N-Body Симуляция: Солнечная Система</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #010208; font-family: sans-serif; }
-        canvas { display: block; width: 100vw; height: 100vh; }
-        
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #010208;
+            font-family: sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
         #info {
-            position: absolute; top: 10px; left: 10px; color: #fff;
-            background: rgba(0,0,0,0.6); padding: 10px; border-radius: 5px; pointer-events: none;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
             z-index: 10;
         }
 
         /* Стили для нового меню управления */
         #menu {
-            position: absolute; top: 130px; left: 10px; color: #fff;
-            background: rgba(0,0,0,0.75); padding: 15px; border-radius: 5px;
-            width: 220px; z-index: 10; border: 1px solid #333;
+            position: absolute;
+            top: 130px;
+            left: 10px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 15px;
+            border-radius: 5px;
+            width: 220px;
+            z-index: 10;
+            border: 1px solid #333;
         }
-        .input-group { margin-bottom: 12px; }
-        .input-group label { display: block; font-size: 0.85em; margin-bottom: 4px; color: #aaa; }
-        .input-group input[type="number"], .input-group input[type="range"] { width: 100%; box-sizing: border-box; }
-        .slider-val { font-size: 0.8em; float: right; color: #00aaff; }
+
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.85em;
+            margin-bottom: 4px;
+            color: #aaa;
+        }
+
+        .input-group input[type="number"],
+        .input-group input[type="range"] {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .slider-val {
+            font-size: 0.8em;
+            float: right;
+            color: #00aaff;
+        }
+
         #spawnBtn {
-            width: 100%; padding: 8px; background: #00aaff; border: none; 
-            color: #fff; font-weight: bold; border-radius: 4px; cursor: pointer;
+            width: 100%;
+            padding: 8px;
+            background: #00aaff;
+            border: none;
+            color: #fff;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
         }
-        #spawnBtn:hover { background: #0088cc; }
+
+        #spawnBtn:hover {
+            background: #0088cc;
+        }
 
         /* CSS Прицел в центре экрана */
         #crosshair {
-            position: absolute; top: 50%; left: 50%;
-            width: 20px; height: 20px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
             transform: translate(-50%, -50%);
-            pointer-events: none; z-index: 5;
-            display: none; /* По умолчанию скрыт */
+            pointer-events: none;
+            z-index: 5;
+            display: none;
+            /* По умолчанию скрыт */
         }
-        #crosshair::before, #crosshair::after {
-            content: ''; position: absolute; background: rgba(255, 255, 255, 0.4);
+
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.4);
         }
+
         /* Горизонтальная линия */
-        #crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
+        #crosshair::before {
+            top: 9px;
+            left: 0;
+            width: 20px;
+            height: 2px;
+        }
+
         /* Вертикальная линия */
-        #crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
+        #crosshair::after {
+            top: 0;
+            left: 9px;
+            width: 2px;
+            height: 20px;
+        }
     </style>
 </head>
+
 <body>
 
-<div id="info">
-    <small>
-        Даблклик — создать тяжелую звезду<br>
-        Колесо — зум, зажать мышкой — двигать<br>
-        <strong>Пробел — Пауза</strong><br>
-        <span id="modeInfo">Режим: Солнечная система</span>
-        <span id="pauseInfo" style="color: #ff4440; display: none;"><br><b>СИМУЛЯЦИЯ НА ПАУЗЕ</b></span>
-    </small>
-</div>
-
-<!-- НОВОЕ МЕНЮ -->
-<div id="menu">
-    <h4 style="margin: 0 0 10px 0; font-size: 0.95em; text-transform: uppercase; letter-spacing: 1px;">Добавить объект</h4>
-    
-    <div class="input-group">
-        <label for="massInput">Масса:</label>
-        <input type="number" id="massInput" value="1000" min="1">
+    <div id="info">
+        <small>
+            Даблклик — создать тяжелую звезду<br>
+            Колесо — зум, зажать мышкой — двигать<br>
+            <strong>Пробел — Пауза</strong><br>
+            <span id="modeInfo">Режим: Солнечная система</span>
+            <span id="pauseInfo" style="color: #ff4440; display: none;">
+                <br><b>СИМУЛЯЦИЯ НА ПАУЗЕ</b>
+                <br><span style="color: #00aaff; font-size: 0.9em;">Шаг сетки: <span id="gridStepVal">100</span>
+                    у.е.</span>
+            </span>
+        </small>
     </div>
-    
-    <div class="input-group">
-        <label for="vxInput">Скорость X: <span id="vxVal" class="slider-val">0</span></label>
-        <input type="range" id="vxInput" min="-250" max="250" value="0" step="5">
+
+    <!-- НОВОЕ МЕНЮ -->
+    <div id="menu">
+        <h4 style="margin: 0 0 10px 0; font-size: 0.95em; text-transform: uppercase; letter-spacing: 1px;">Добавить
+            объект</h4>
+
+        <div class="input-group">
+            <label for="massInput">Масса:</label>
+            <input type="number" id="massInput" value="1000" min="1">
+        </div>
+
+        <div class="input-group">
+            <label for="vxInput">Скорость X: <span id="vxVal" class="slider-val">0</span></label>
+            <input type="range" id="vxInput" min="-250" max="250" value="0" step="5">
+        </div>
+
+        <div class="input-group">
+            <label for="vyInput">Скорость Y: <span id="vyVal" class="slider-val">0</span></label>
+            <input type="range" id="vyInput" min="-250" max="250" value="0" step="5">
+        </div>
+
+        <button id="spawnBtn">Создать в центре</button>
     </div>
-    
-    <div class="input-group">
-        <label for="vyInput">Скорость Y: <span id="vyVal" class="slider-val">0</span></label>
-        <input type="range" id="vyInput" min="-250" max="250" value="0" step="5">
-    </div>
-    
-    <button id="spawnBtn">Создать в центре</button>
-</div>
 
-<!-- ПРИЦЕЛ -->
-<div id="crosshair"></div>
+    <!-- ПРИЦЕЛ -->
+    <div id="crosshair"></div>
 
-<canvas id="simulationCanvas"></canvas>
+    <canvas id="simulationCanvas"></canvas>
 
-<script type="module" src="./js/main.js"></script>
+    <script type="module" src="./js/main.js"></script>
 </body>
+
 </html>

@@ -1,11 +1,12 @@
 import { 
-    SOLAR_SYSTEM, MAX_STARS, TEX_SIZE, G, SOFTENING, PHYSICS_DT, 
+    MAX_STARS, TEX_SIZE, G, SOFTENING, PHYSICS_DT, 
     NEW_MASS, INITIAL_VELOCITY_SCALE, REAL_STEP, state 
 } from './config.js';
 
 import { 
     quadVertexShader, updateVelFragmentShader, updatePosFragmentShader, 
-    renderVertexShader, renderFragmentShader, createGradientCanvas
+    renderVertexShader, renderFragmentShader, createGradientCanvas,
+    gridVertexShader, gridFragmentShader
 } from './shaders.js';
 
 import { initializeData } from './init-data.js';
@@ -51,6 +52,7 @@ function createProg(vs, fs) {
 const velProg = createProg(quadVertexShader, updateVelFragmentShader);
 const posProg = createProg(quadVertexShader, updatePosFragmentShader);
 const renderProg = createProg(renderVertexShader, renderFragmentShader);
+const gridProg = createProg(gridVertexShader, gridFragmentShader);
 
 // --- Подготовка Данных ---
 const { posData, velData } = initializeData(canvas.width, canvas.height);
@@ -82,7 +84,7 @@ const fb = gl.createFramebuffer();
 // --- Управление Камерой ---
 let cameraX = canvas.width * 0.5;
 let cameraY = canvas.height * 0.5;
-let cameraScale = SOLAR_SYSTEM ? 0.1 : 0.1;
+let cameraScale = 0.1;
 let isDragging = false, startX, startY, startCamX, startCamY;
 
 canvas.addEventListener('mousedown', (e) => {
@@ -108,6 +110,7 @@ canvas.addEventListener('wheel', (e) => {
     cameraScale = newScale;
     cameraX = mouseX - worldX * cameraScale;
     cameraY = mouseY - worldY * cameraScale;
+    updateGridStepText();
 });
 
 // --- Добавление Звезд ---
@@ -165,6 +168,7 @@ window.addEventListener('keydown', (e) => {
             crosshairEl.style.display = 'none';  // Скрываем прицел при запуске
         }
     }
+    updateGridStepText();
 });
 
 spawnBtn.addEventListener('click', () => {
@@ -187,6 +191,20 @@ spawnBtn.addEventListener('click', () => {
     // Опционально: пишем в консоль для отладки
     console.log(`Объект создан в мире: X=${worldX.toFixed(1)}, Y=${worldY.toFixed(1)} с макро-скоростью vx=${vx}, vy=${vy}`);
 });
+
+function updateGridStepText() {
+    if (!cameraScale) return;
+    
+    const densityBias = 1.7; // Должно строго совпадать с константой в шейдере
+    
+    // Аналог формулы на JavaScript
+    const log10Scale = Math.log10(cameraScale);
+    const power = Math.floor(-log10Scale + densityBias);
+    const step = Math.pow(10, power);
+    
+    // Красиво форматируем числа (например, убираем длинные хвосты у дробных шагов при экстремальном зуме)
+    document.getElementById('gridStepVal').textContent = step.toLocaleString('ru-RU');
+}
 
 // --- Цикл рендеринга ---
 let lastTime = performance.now();
@@ -243,6 +261,20 @@ function loop(currentTime) {
     gl.clearColor(0.002, 0.004, 0.015, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    // --- НОВЫЙ БЛОК: ОТРИСОВКА СЕТКИ НА ПАУЗЕ ---
+    if (state.isPaused) {
+        gl.useProgram(gridProg);
+        gl.uniform2f(gl.getUniformLocation(gridProg, "uCameraPan"), cameraX, cameraY);
+        gl.uniform1f(gl.getUniformLocation(gridProg, "uCameraScale"), cameraScale);
+        gl.uniform2f(gl.getUniformLocation(gridProg, "uResolution"), canvas.width, canvas.height);
+        
+        // Рисуем один треугольник, развернутый на весь экран (fullscreen quad)
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+
     gl.useProgram(renderProg);
     gl.uniform1i(gl.getUniformLocation(renderProg, "uTexWidth"), TEX_SIZE);
     gl.uniform2f(gl.getUniformLocation(renderProg, "uCameraPan"), cameraX, cameraY);
@@ -255,6 +287,8 @@ function loop(currentTime) {
     gl.uniform1i(gl.getUniformLocation(renderProg, "uGradientTex"), 1);
 
     gl.drawArrays(gl.POINTS, 0, state.currentStarCount);
+
+    gl.disable(gl.BLEND);
 
     requestAnimationFrame(loop);
 }
