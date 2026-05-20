@@ -45,6 +45,13 @@
             border: 1px solid #333;
         }
 
+        #reload {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+        }
+
         .input-group {
             margin-bottom: 12px;
         }
@@ -123,6 +130,26 @@
 </head>
 
 <body>
+    <div id="reload">
+        <div style="margin-bottom: 10px;">
+            <label for="modeSelect" style="font-size: 0.9em; color: #ccc; display: block; margin-bottom: 4px;">Режим
+                симуляции:</label>
+            <select id="modeSelect"
+                style="background: #111525; color: #fff; border: 1px solid #334477; padding: 6px; width: 100%; border-radius: 4px; cursor: pointer;">
+                <option value="SOLAR_SYSTEM">Солнечная Система</option>
+                <option value="STAR_CLOUD">Звездное облако</option>
+                <option value="GALAXY">Галактика (1 ядро)</option>
+                <option value="EMPTY">Пустой космос (0 тел)</option>
+                <option value="MULTIPLE_GALAXIES">Кластер галактик</option>
+                <option value="RANDOM">Случайный хаос</option>
+            </select>
+        </div>
+
+        <button id="restartBtn"
+            style="background: #00aaff; color: #fff; border: none; padding: 8px 12px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 15px; transition: background 0.2s;">
+            Перезапустить
+        </button>
+    </div>
 
     <div id="info">
         <small>
@@ -138,7 +165,8 @@
                     style="color: #ffcc00; font-weight: bold;">0</span>
             </div>
             <span id="pauseInfo" style="color: #ff4440; display: none;"><b>СИМУЛЯЦИЯ НА ПАУЗЕ</b></span>
-            <br><span id="gridStepInfo" style="color: #00aaff; font-size: 0.9em; display: none;">Шаг сетки: <span id="gridStepVal">100</span> у.е.</span>
+            <br><span id="gridStepInfo" style="color: #00aaff; font-size: 0.9em; display: none;">Шаг сетки: <span
+                    id="gridStepVal">100</span> у.е.</span>
         </small>
     </div>
 

@@ -4,62 +4,72 @@ export const MODES = {
     GALAXY: 2,
     EMPTY: 3,
     MULTIPLE_GALAXIES: 4,
-    RANDOM:5
+    RANDOM: 5
 };
-
-// ВЫБЕРИТЕ РЕЖИМ ТУТ:
-export const SIM_MODE = MODES.RANDOM; 
 
 export const MAX_STARS = 16384; 
+export const TEX_SIZE = Math.ceil(Math.sqrt(MAX_STARS));
 
-let init_stars = 0;
-let g = 0;
-
-switch (SIM_MODE) {
-    case MODES.SOLAR_SYSTEM:
-        init_stars = 9;
-        g = 1000.0;
-        break;
-    case MODES.STAR_CLOUD:
-        init_stars = 10000;
-        g = 0.5;
-        break;
-    case MODES.GALAXY:
-        init_stars = 14000;
-        g = 0.1;
-        break;
-    case MODES.EMPTY:
-        init_stars = 0;
-        g = 10.0;
-        break;
-    case MODES.MULTIPLE_GALAXIES:
-        init_stars = 12000;
-        g = 0.1;
-        break;
-    case MODES.RANDOM:
-        init_stars = 14000;
-        g = 0.5
-}
-
+// Все глобальные динамические параметры симуляции переносим в единый стейт
 export const state = {
-    currentStarCount: init_stars,
+    currentMode: MODES.RANDOM, // Начальный режим по умолчанию
+    currentStarCount: 0,
     isPaused: false,
-    showGrid: false
+    showGrid: false,
+    
+    // Физика (будет перезаписываться функцией ниже)
+    G: 0,
+    SOFTENING: 5,
+    PHYSICS_DT: 0.5,
+    NEW_MASS: 10.0,
+    GALAXY_COUNT: 3 // Перенесли сюда, чтобы можно было менять
 };
 
-export const GALAXY_COUNT = 3;
+// Функция, которая настраивает стейт под выбранный режим (твоя логика switch)
+export function updatePhysicalConstants(mode) {
+    state.currentMode = mode;
+    
+    // 1. Применяем твою логику switch для звезд и G
+    switch (mode) {
+        case MODES.SOLAR_SYSTEM:
+            state.currentStarCount = 9;
+            state.G = 1000.0;
+            break;
+        case MODES.STAR_CLOUD:
+            state.currentStarCount = 10000;
+            state.G = 0.5;
+            break;
+        case MODES.GALAXY:
+            state.currentStarCount = 14000;
+            state.G = 0.1;
+            break;
+        case MODES.EMPTY:
+            state.currentStarCount = 0;
+            state.G = 10.0;
+            break;
+        case MODES.MULTIPLE_GALAXIES:
+            state.currentStarCount = 12000;
+            state.G = 0.1;
+            break;
+        case MODES.RANDOM:
+            state.currentStarCount = 14000;
+            state.G = 0.5;
+            break;
+    }
 
-export const G = g;
-export const SOFTENING = SIM_MODE === MODES.SOLAR_SYSTEM ? 0.1 : 5;    
-export const PHYSICS_DT = SIM_MODE === MODES.SOLAR_SYSTEM ? 0.05 : 0.5;   
+    // 2. Применяем твои правила зависимостей
+    state.SOFTENING = (mode === MODES.SOLAR_SYSTEM) ? 0.1 : 5.0;
+    state.PHYSICS_DT = (mode === MODES.SOLAR_SYSTEM) ? 0.05 : 0.5;
+    state.NEW_MASS = (mode === MODES.SOLAR_SYSTEM) ? 100.0 : 10000000.0;
+}
 
-export const MAX_RARIUS_SCALE = 0.5 * 10;
+// Инициализируем дефолтное состояние при первом старте приложения
+updatePhysicalConstants(state.currentMode);
+
+// Статичные константы, которые не требуют изменений во времени
+export const MAX_RADIUS_SCALE = 0.5 * 10;
 export const INITIAL_VELOCITY_SCALE = 0.2;
 export const RANDOM_RADIUS = true;
-
-export const NEW_MASS = SIM_MODE === MODES.SOLAR_SYSTEM ? 100.0 : 10000000.0;
 export const MIN_MASS = 0.01;
 export const MAX_MASS = 30.0;
-export const REAL_STEP = 1000 / 60;     
-
-export const TEX_SIZE = Math.ceil(Math.sqrt(MAX_STARS));
+export const REAL_STEP = 1000 / 60;

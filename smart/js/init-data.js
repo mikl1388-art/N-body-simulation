@@ -1,9 +1,4 @@
-// js/init-data.js
-import {
-    SIM_MODE, MODES, TEX_SIZE, G, state,
-    RANDOM_RADIUS, MIN_MASS, MAX_MASS,
-    MAX_RARIUS_SCALE, INITIAL_VELOCITY_SCALE, GALAXY_COUNT
-} from './config.js';
+import { state, MODES, updatePhysicalConstants, TEX_SIZE, INITIAL_VELOCITY_SCALE, MAX_RADIUS_SCALE, MIN_MASS, MAX_MASS, RANDOM_RADIUS } from './config.js';
 
 let minGalaxyDist = 300.0;
 
@@ -15,7 +10,7 @@ export function initializeData(screenWidth, screenHeight) {
     const baseRadiusRef = Math.min(screenWidth, screenHeight);
 
     // --- РЕЖИМ 1: СОЛНЕЧНАЯ СИСТЕМА ---
-    if (SIM_MODE === MODES.SOLAR_SYSTEM) {
+    if (state.currentMode === MODES.SOLAR_SYSTEM) {
         document.getElementById('modeInfo').textContent = "Режим: Солнечная Система (8 планет)";
 
         const M0 = 1;
@@ -43,7 +38,7 @@ export function initializeData(screenWidth, screenHeight) {
 
             let speed = 0;
             if (planet.distance > 0) {
-                speed = Math.sqrt((G * sunMass) / planet.distance);
+                speed = Math.sqrt((state.G * sunMass) / planet.distance);
             }
 
             velData[idx] = 0;
@@ -51,7 +46,7 @@ export function initializeData(screenWidth, screenHeight) {
         });
 
         // --- РЕЖИМ 2: СВЕРХМАССИВНОЕ ЯДРО (ГАЛАКТИКА) ---
-    } else if (SIM_MODE === MODES.GALAXY) {
+    } else if (state.currentMode === MODES.GALAXY) {
         document.getElementById('modeInfo').textContent = `Режим: Галактика (${state.currentStarCount} тел)`;
 
         // 1. Создаем центральное сверхмассивное тело строго в точке (0, 0)
@@ -80,15 +75,15 @@ export function initializeData(screenWidth, screenHeight) {
             posData[idx + 2] = mass;
             posData[idx + 3] = (radius - minRadius) / (maxRadius - minRadius);
 
-            const orbitalSpeed = Math.sqrt((G * coreMass) / radius);
+            const orbitalSpeed = Math.sqrt((state.G * coreMass) / radius);
 
             velData[idx] = -Math.sin(angle) * orbitalSpeed;
             velData[idx + 1] = Math.cos(angle) * orbitalSpeed;
         }
-    } else if (SIM_MODE === MODES.MULTIPLE_GALAXIES) {
+    } else if (state.currentMode === MODES.MULTIPLE_GALAXIES) {
         document.getElementById('modeInfo').textContent = `Режим: Кластер галактик (${state.currentStarCount} тел)`;
 
-        const starsPerGalaxy = Math.floor(state.currentStarCount / GALAXY_COUNT);
+        const starsPerGalaxy = Math.floor(state.currentStarCount / state.GALAXY_COUNT);
         const coreMass = 3000000.0; // Масса черной дыры в центре каждой галактики
 
         // Радиус спавна самих галактик вокруг центра мира (0,0)
@@ -96,7 +91,7 @@ export function initializeData(screenWidth, screenHeight) {
         // Максимальная скорость движения самих галактик
         const maxGalaxySpeed = 15.0;
 
-        for (let g = 0; g < GALAXY_COUNT; g++) {
+        for (let g = 0; g < state.GALAXY_COUNT; g++) {
             // 1. Задаем случайную начальную позицию и вектор движения для всей галактики
             const gAngle = Math.random() * Math.PI * 2;
             const gDist = Math.random() * clusterRadius;
@@ -124,7 +119,7 @@ export function initializeData(screenWidth, screenHeight) {
 
             // 2. Заполняем звезды этой галактики
             // Вычисляем до какого индекса крутить цикл (последней галактике отдаем остаток звезд)
-            const endIdx = (g === GALAXY_COUNT - 1) ? state.currentStarCount : (g + 1) * starsPerGalaxy;
+            const endIdx = (g === state.GALAXY_COUNT - 1) ? state.currentStarCount : (g + 1) * starsPerGalaxy;
 
             for (let i = g * starsPerGalaxy + 1; i < endIdx; i++) {
                 const idx = i * 4;
@@ -143,7 +138,7 @@ export function initializeData(screenWidth, screenHeight) {
                 posData[idx + 3] = (radius - minRadius) / (maxRadius - minRadius);
 
                 // Локальная орбитальная скорость внутри диска
-                const orbitalSpeed = Math.sqrt((G * coreMass) / radius);
+                const orbitalSpeed = Math.sqrt((state.G * coreMass) / radius);
                 const localVx = -Math.sin(starAngle) * orbitalSpeed;
                 const localVy = Math.cos(starAngle) * orbitalSpeed;
 
@@ -152,14 +147,14 @@ export function initializeData(screenWidth, screenHeight) {
                 velData[idx + 1] = galaxyVy + localVy;
             }
         }
-    } else if (SIM_MODE === MODES.RANDOM) {
+    } else if (state.currentMode === MODES.RANDOM) {
         document.getElementById('modeInfo').textContent = `Режим: Случайное заполнение (${state.currentStarCount} тел)`;
         let massSum = 0;
         let totalV = 0;   // Сюда будем складывать обычные скорости (модули)
         let totalV2 = 0;  // Сюда будем складывать квадраты скоростей
 
         const velocityMultiplier = INITIAL_VELOCITY_SCALE * 50;
-        const clusterDiameter = baseRadiusRef * MAX_RARIUS_SCALE * 10; // Диаметр вашего скопления
+        const clusterDiameter = baseRadiusRef * MAX_RADIUS_SCALE * 10; // Диаметр вашего скопления
 
         for (let i = 0; i < state.currentStarCount; i++) {
             const mass = MIN_MASS + Math.random() * (MAX_MASS - MIN_MASS);
@@ -206,7 +201,7 @@ export function initializeData(screenWidth, screenHeight) {
         let V_rms = Math.sqrt(totalV2 / N);
 
         // 3. Считаем Теоретическую Скорость Убегания (V_escape) по формуле, которую мы обсуждали
-        let V_escape = Math.sqrt((16 * G * massSum) / clusterDiameter);
+        let V_escape = Math.sqrt((16 * state.G * massSum) / clusterDiameter);
 
         console.log(`--- СТАТИСТИКА СКОПЛЕНИЯ ---`);
         console.log(`Средняя арифметическая скорость (Va): ${V_average}`);
@@ -217,7 +212,7 @@ export function initializeData(screenWidth, screenHeight) {
         document.getElementById('modeInfo').textContent = `Режим: Звездное облако (${state.currentStarCount} тел)`;
         for (let i = 0; i < state.currentStarCount; i++) {
             const angle = (RANDOM_RADIUS ? Math.random() : (i / (state.currentStarCount + 1))) * Math.PI * 2;
-            const radius = (RANDOM_RADIUS ? Math.random() : 1) * (baseRadiusRef * 0.5 * MAX_RARIUS_SCALE);
+            const radius = (RANDOM_RADIUS ? Math.random() : 1) * (baseRadiusRef * 0.5 * MAX_RADIUS_SCALE);
             const mass = MIN_MASS + Math.random() * (MAX_MASS - MIN_MASS);
 
             const idx = i * 4;

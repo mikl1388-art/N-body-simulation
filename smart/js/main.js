@@ -1,7 +1,5 @@
-import {
-    MAX_STARS, TEX_SIZE, G, SOFTENING, PHYSICS_DT,
-    NEW_MASS, INITIAL_VELOCITY_SCALE, REAL_STEP, state
-} from './config.js';
+import { state, MODES, updatePhysicalConstants, TEX_SIZE, REAL_STEP } from './config.js';
+import { initializeData } from './init-data.js';
 
 import {
     quadVertexShader, updateVelFragmentShader, updatePosFragmentShader,
@@ -9,7 +7,57 @@ import {
     gridVertexShader, gridFragmentShader
 } from './shaders.js';
 
-import { initializeData } from './init-data.js';
+function restartSimulation(selectedModeName) {
+    const targetMode = MODES[selectedModeName];
+    
+    // 1. Пересчитываем G, количество звезд и массы под выбранный режим
+    updatePhysicalConstants(targetMode);
+
+    // 2. Перегенерируем стартовые массивы позиций и скоростей
+    const { posData, velData } = initializeData(canvas.width, canvas.height);
+
+    // 3. Загружаем свежие массивы данных в WebGL текстуры (Ping-Pong пары)
+    gl.bindTexture(gl.TEXTURE_2D, posTex[0]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, TEX_SIZE, TEX_SIZE, 0, gl.RGBA, gl.FLOAT, posData);
+    gl.bindTexture(gl.TEXTURE_2D, posTex[1]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, TEX_SIZE, TEX_SIZE, 0, gl.RGBA, gl.FLOAT, posData);
+
+    gl.bindTexture(gl.TEXTURE_2D, velTex[0]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, TEX_SIZE, TEX_SIZE, 0, gl.RGBA, gl.FLOAT, velData);
+    gl.bindTexture(gl.TEXTURE_2D, velTex[1]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, TEX_SIZE, TEX_SIZE, 0, gl.RGBA, gl.FLOAT, velData);
+
+    const newGradientCanvas = createGradientCanvas(); 
+    gl.bindTexture(gl.TEXTURE_2D, gradientTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, newGradientCanvas);
+
+    // 4. Сбрасываем камеру в зависимости от масштаба режима
+    cameraX = canvas.width * 0.5;
+    cameraY = canvas.height * 0.5;
+    cameraScale = (state.currentMode === MODES.SOLAR_SYSTEM) ? 0.2 : 0.05;
+
+    // 5. Снимаем с паузы и обновляем UI элементы
+    state.isPaused = false;
+    
+    // Если у тебя написаны функции обновления текста, вызываем их:
+    if (typeof updateSidebarInfo === 'function') updateSidebarInfo();
+    if (typeof updateGridStepText === 'function') updateGridStepText();
+}
+
+// Инициализация событий при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+    const modeSelect = document.getElementById('modeSelect');
+    const restartBtn = document.getElementById('restartBtn');
+
+    // Ставим селектор в начальное положение из конфига (RANDOM)
+    const currentModeName = Object.keys(MODES).find(key => MODES[key] === state.currentMode);
+    if (currentModeName) modeSelect.value = currentModeName;
+
+    // Вешаем перезапуск на кнопку
+    restartBtn.addEventListener('click', () => {
+        restartSimulation(modeSelect.value);
+    });
+});
 
 const vxInput = document.getElementById('vxInput');
 const vyInput = document.getElementById('vyInput');
@@ -170,7 +218,7 @@ window.addEventListener('keydown', (e) => {
     } else {
         pauseEl.style.display = 'none';
     }
-    
+
     if (state.showGrid) {
         gridStepInfoEl.style.display = 'inline';
         crosshairEl.style.display = 'block'; 
@@ -222,7 +270,7 @@ function updateSidebarInfo() {
     document.getElementById('starCountVal').textContent = state.currentStarCount.toLocaleString('ru-RU');
 
     // Обновляем значение G (выводим до 2 знаков после запятой, если число дробное)
-    document.getElementById('gConstantVal').textContent = Number(G).toFixed(G % 1 === 0 ? 0 : 2);
+    document.getElementById('gConstantVal').textContent = Number(state.G).toFixed(state.G % 1 === 0 ? 0 : 2);
 }
 
 // --- Цикл рендеринга ---
@@ -250,9 +298,9 @@ function loop(currentTime) {
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, velTex[nextIdx], 0);
         gl.useProgram(velProg);
         gl.uniform1i(gl.getUniformLocation(velProg, "uCurrentStarCount"), state.currentStarCount);
-        gl.uniform1f(gl.getUniformLocation(velProg, "uG"), G);
-        gl.uniform1f(gl.getUniformLocation(velProg, "uSoftening"), SOFTENING);
-        gl.uniform1f(gl.getUniformLocation(velProg, "uDT"), PHYSICS_DT);
+        gl.uniform1f(gl.getUniformLocation(velProg, "uG"), state.G);
+        gl.uniform1f(gl.getUniformLocation(velProg, "uSoftening"), state.SOFTENING);
+        gl.uniform1f(gl.getUniformLocation(velProg, "uDT"), state.PHYSICS_DT);
 
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTex[currIdx]);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velTex[currIdx]);
@@ -263,7 +311,7 @@ function loop(currentTime) {
         // 2. Считаем ПОЗИЦИИ
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, posTex[nextIdx], 0);
         gl.useProgram(posProg);
-        gl.uniform1f(gl.getUniformLocation(posProg, "uDT"), PHYSICS_DT);
+        gl.uniform1f(gl.getUniformLocation(posProg, "uDT"), state.PHYSICS_DT);
 
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTex[currIdx]);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velTex[nextIdx]);

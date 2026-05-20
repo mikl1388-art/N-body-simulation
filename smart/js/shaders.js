@@ -1,5 +1,4 @@
-import { SIM_MODE, MODES } from './config.js';
-
+import { state, MODES } from './config.js';
 export const quadVertexShader = `#version 300 es
 void main() {
     vec2 uv = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
@@ -169,7 +168,7 @@ export function createGradientCanvas() {
     canvas.width = 256; canvas.height = 1;
     const ctx = canvas.getContext('2d');
     const gradient = ctx.createLinearGradient(0, 0, 256, 0);
-    switch (SIM_MODE) {
+    switch (state.currentMode) {
         case MODES.SOLAR_SYSTEM:
             gradient.addColorStop(0.0, '#ffcc00');
             gradient.addColorStop(0.2, '#ffffff');
