@@ -1,7 +1,5 @@
 import { state, MODES, updatePhysicalConstants, TEX_SIZE, INITIAL_VELOCITY_SCALE, MAX_RADIUS_SCALE, MIN_MASS, MAX_MASS, RANDOM_RADIUS } from './config.js';
 
-let minGalaxyDist = 300.0;
-
 export function initializeData(screenWidth, screenHeight) {
     const posData = new Float32Array(TEX_SIZE * TEX_SIZE * 4);
     const velData = new Float32Array(TEX_SIZE * TEX_SIZE * 4);
@@ -48,7 +46,7 @@ export function initializeData(screenWidth, screenHeight) {
         // --- РЕЖИМ 2: СВЕРХМАССИВНОЕ ЯДРО (ГАЛАКТИКА) ---
     } else if (state.currentMode === MODES.GALAXY) {
         document.getElementById('modeInfo').textContent = `Режим: Галактика (${state.currentStarCount} тел)`;
-
+        let minGalaxyDist = 300.0;
         // 1. Создаем центральное сверхмассивное тело строго в точке (0, 0)
         const coreMass = 5000000.0;
         posData[0] = 0.0;
@@ -73,13 +71,98 @@ export function initializeData(screenWidth, screenHeight) {
             posData[idx] = Math.cos(angle) * radius;
             posData[idx + 1] = Math.sin(angle) * radius;
             posData[idx + 2] = mass;
-            posData[idx + 3] = (radius - minRadius) / (maxRadius - minRadius);
+            posData[idx + 3] = (radius - minRadius) / (maxRadius - minRadius) * 0.99;
 
             const orbitalSpeed = Math.sqrt((state.G * coreMass) / radius);
 
             velData[idx] = -Math.sin(angle) * orbitalSpeed;
             velData[idx + 1] = Math.cos(angle) * orbitalSpeed;
         }
+    }
+    else if (state.currentMode === MODES.REALGALAXY) {
+        document.getElementById('modeInfo').textContent = `Режим: Галактика (${state.currentStarCount} тел)`;
+
+        const MIN_MASS = 0.01;
+        const MAX_MASS = 30.0;
+        const minGalaxyDist = 60.0;
+
+        // Оцениваем среднюю массу звезды при функции Салпитера.
+        // Так как легких звезд колоссально больше, средняя масса будет около 0.05.
+        const estimatedAvgMass = 0.05;
+        const totalDiskMass = state.currentStarCount * estimatedAvgMass;
+
+        // 1. Подстраиваем ядро. 
+        // В реальности сверхмассивная черная дыра - это лишь малая часть галактики (около 1-5%).
+        // Раньше ядро доминировало, теперь мы даем массе диска влиять на гравитацию!
+        const coreMass = totalDiskMass * 0.05;
+
+        posData[0] = 0.0;
+        posData[1] = 0.0;
+        posData[2] = coreMass;
+        posData[3] = 0.0; // Твоя раскраска центра
+
+        velData[0] = 0.0;
+        velData[1] = 0.0;
+
+        // Подготовка для реалистичного распределения масс (Салпитер)
+        const alpha = 2.35;
+        const minM = Math.pow(MIN_MASS, 1 - alpha);
+        const maxM = Math.pow(MAX_MASS, 1 - alpha);
+
+        let mm1 = -Infinity;
+        let mm2 = Infinity;
+        // 2. Распределяем остальные звезды вокруг нуля (просто диск)
+        for (let i = 1; i < state.currentStarCount; i++) {
+            const idx = i * 4;
+
+            const angle = Math.random() * Math.PI * 2;
+            const minRadius = minGalaxyDist;
+            const maxRadius = baseRadiusRef * 3.5;
+
+            // Формируем плотность диска
+            const radius = minRadius + Math.pow(Math.random(), 1.5) * (maxRadius - minRadius);
+
+            // Случайная реалистичная масса (много по 0.01, единицы по 30.0)
+            let randomVal = Math.random();
+            let mass = Math.pow(randomVal * (maxM - minM) + minM, 1 / (1 - alpha));
+            while (radius < maxRadius / 2 && mass > 5.0) {
+                randomVal = Math.random();
+                mass = Math.pow(randomVal * (maxM - minM) + minM, 1 / (1 - alpha));
+                console.log(`Отбрасываем слишком тяжелую звезду no${i} mass=${mass.toFixed(2)} в центре radius=${radius.toFixed(2)}`);
+            }
+            mm1 = Math.max(mm1, mass);
+            mm2 = Math.min(mm2, mass);
+
+            posData[idx] = Math.cos(angle) * radius;
+            posData[idx + 1] = Math.sin(angle) * radius;
+            posData[idx + 2] = mass;
+
+            // --- БЛОК РАСКРАСКИ (БЕЗ ИЗМЕНЕНИЙ) ---
+            const numArms = 2.0;
+            const tight = -0;
+            const normalizedRadius = (radius - minRadius) / (maxRadius - minRadius);
+            const armAngle = angle - normalizedRadius * tight;
+            let armFactor = -Math.cos(armAngle * numArms);
+            armFactor = armFactor * 0.5 + 0.5;
+            posData[idx + 3] = armFactor * 0.99;
+            // --------------------------------------
+
+            // --- ИДЕАЛЬНАЯ СКОРОСТЬ (Эффект Веры Рубин без разлёта звёзд) ---
+            // Вычисляем, какая масса диска находится ВНУТРИ орбиты этой звезды.
+            // Так как радиус распределен как случайное^1.5, доля звезд внутри радиуса равна normalizedRadius^(2/3).
+            const enclosedDiskMass = totalDiskMass * Math.pow(normalizedRadius, 2 / 3);
+            const enclosedMass = coreMass + enclosedDiskMass;
+
+            // Формула Кеплера, но теперь с учетом массы диска!
+            // Поскольку enclosedMass растет по мере удаления от центра, скорость на краях
+            // НЕ будет падать так резко. Мы получаем плоскую кривую вращения естественным путем,
+            // и звезды НЕ улетят, так как их скорость идеально сбалансирована гравитацией внутри их орбиты.
+            const orbitalSpeed = Math.sqrt((state.G * enclosedMass) / radius);
+
+            velData[idx] = -Math.sin(angle) * orbitalSpeed;
+            velData[idx + 1] = Math.cos(angle) * orbitalSpeed;
+        }
+        console.log(`Массы звезд в галактике: min=${mm2.toFixed(3)}, max=${mm1.toFixed(3)}`);
     } else if (state.currentMode === MODES.MULTIPLE_GALAXIES) {
         document.getElementById('modeInfo').textContent = `Режим: Кластер галактик (${state.currentStarCount} тел)`;
 

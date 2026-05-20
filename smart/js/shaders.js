@@ -177,6 +177,7 @@ export function createGradientCanvas() {
             gradient.addColorStop(1.0, '#ff4400');
             break;
         case MODES.GALAXY:
+        case MODES.REALGALAXY:
             // Градиент для галактики: белое ядро -> голубые звезды -> фиолетовая периферия
             gradient.addColorStop(0.0, '#ffffff');
             gradient.addColorStop(0.1, '#e0f7ff');

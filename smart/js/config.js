@@ -4,7 +4,8 @@ export const MODES = {
     GALAXY: 2,
     EMPTY: 3,
     MULTIPLE_GALAXIES: 4,
-    RANDOM: 5
+    RANDOM: 5, 
+    REALGALAXY: 6
 };
 
 export const MAX_STARS = 16384; 
@@ -12,7 +13,7 @@ export const TEX_SIZE = Math.ceil(Math.sqrt(MAX_STARS));
 
 // Все глобальные динамические параметры симуляции переносим в единый стейт
 export const state = {
-    currentMode: MODES.RANDOM, // Начальный режим по умолчанию
+    currentMode: MODES.STAR_CLOUD, // Начальный режим по умолчанию
     currentStarCount: 0,
     isPaused: false,
     showGrid: false,
@@ -28,6 +29,9 @@ export const state = {
 // Функция, которая настраивает стейт под выбранный режим (твоя логика switch)
 export function updatePhysicalConstants(mode) {
     state.currentMode = mode;
+    state.SOFTENING = (mode === MODES.SOLAR_SYSTEM) ? 0.1 : 5.0;
+    state.PHYSICS_DT = (mode === MODES.SOLAR_SYSTEM) ? 0.05 : 0.5;
+    state.NEW_MASS = (mode === MODES.SOLAR_SYSTEM) ? 100.0 : 10000000.0;
     
     // 1. Применяем твою логику switch для звезд и G
     switch (mode) {
@@ -55,12 +59,14 @@ export function updatePhysicalConstants(mode) {
             state.currentStarCount = 14000;
             state.G = 0.5;
             break;
+        case MODES.REALGALAXY:
+            state.currentStarCount = 14000;
+            state.G = 5;
+            state.SOFTENING = 30
+
     }
 
     // 2. Применяем твои правила зависимостей
-    state.SOFTENING = (mode === MODES.SOLAR_SYSTEM) ? 0.1 : 5.0;
-    state.PHYSICS_DT = (mode === MODES.SOLAR_SYSTEM) ? 0.05 : 0.5;
-    state.NEW_MASS = (mode === MODES.SOLAR_SYSTEM) ? 100.0 : 10000000.0;
 }
 
 // Инициализируем дефолтное состояние при первом старте приложения
