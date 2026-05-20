@@ -285,7 +285,7 @@ function loop(currentTime) {
 
     // Если симуляция на паузе, мы НЕ накапливаем время для физических шагов
     if (!state.isPaused) {
-        accumulator += dt;
+        accumulator += dt * state.timeScale;
     }
 
     while (accumulator >= REAL_STEP) {

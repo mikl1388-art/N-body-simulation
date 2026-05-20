@@ -165,7 +165,7 @@ export function initializeData(screenWidth, screenHeight) {
         console.log(`Массы звезд в галактике: min=${mm2.toFixed(3)}, max=${mm1.toFixed(3)}`);
     } else if (state.currentMode === MODES.MULTIPLE_GALAXIES) {
         document.getElementById('modeInfo').textContent = `Режим: Кластер галактик (${state.currentStarCount} тел)`;
-
+        let minGalaxyDist = 300.0;
         const starsPerGalaxy = Math.floor(state.currentStarCount / state.GALAXY_COUNT);
         const coreMass = 3000000.0; // Масса черной дыры в центре каждой галактики
 

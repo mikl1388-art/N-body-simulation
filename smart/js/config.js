@@ -17,6 +17,7 @@ export const state = {
     currentStarCount: 0,
     isPaused: false,
     showGrid: false,
+    timeScale: 5,
     
     // Физика (будет перезаписываться функцией ниже)
     G: 0,
