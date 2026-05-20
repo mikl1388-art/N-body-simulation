@@ -1,10 +1,10 @@
-import { 
-    MAX_STARS, TEX_SIZE, G, SOFTENING, PHYSICS_DT, 
-    NEW_MASS, INITIAL_VELOCITY_SCALE, REAL_STEP, state 
+import {
+    MAX_STARS, TEX_SIZE, G, SOFTENING, PHYSICS_DT,
+    NEW_MASS, INITIAL_VELOCITY_SCALE, REAL_STEP, state
 } from './config.js';
 
-import { 
-    quadVertexShader, updateVelFragmentShader, updatePosFragmentShader, 
+import {
+    quadVertexShader, updateVelFragmentShader, updatePosFragmentShader,
     renderVertexShader, renderFragmentShader, createGradientCanvas,
     gridVertexShader, gridFragmentShader
 } from './shaders.js';
@@ -123,8 +123,8 @@ function addNewStar(worldX, worldY, vx, vy, mass) {
     const index = state.currentStarCount;
     const px = index % TEX_SIZE;
     const py = Math.floor(index / TEX_SIZE);
-    const normMass = 0.5; 
-    
+    const normMass = 0.5;
+
     const singlePos = new Float32Array([worldX, worldY, mass, normMass]);
     const singleVel = new Float32Array([vx, vy, 0.0, 0.0]);
 
@@ -136,6 +136,7 @@ function addNewStar(worldX, worldY, vx, vy, mass) {
     }
 
     state.currentStarCount++;
+    updateSidebarInfo()
 }
 
 canvas.addEventListener('dblclick', (e) => {
@@ -144,9 +145,9 @@ canvas.addEventListener('dblclick', (e) => {
     const worldY = (mouseY - cameraY) / cameraScale;
 
     addNewStar(
-        worldX, worldY, 
-        (Math.random() - 0.5) * INITIAL_VELOCITY_SCALE * 250, 
-        (Math.random() - 0.5) * INITIAL_VELOCITY_SCALE * 250, 
+        worldX, worldY,
+        (Math.random() - 0.5) * INITIAL_VELOCITY_SCALE * 250,
+        (Math.random() - 0.5) * INITIAL_VELOCITY_SCALE * 250,
         NEW_MASS
     );
 });
@@ -155,19 +156,29 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
         e.preventDefault();
         state.isPaused = !state.isPaused;
-
-        // Элементы интерфейса
-        const pauseEl = document.getElementById('pauseInfo');
-        const crosshairEl = document.getElementById('crosshair');
-        
-        if (state.isPaused) {
-            pauseEl.style.display = 'inline';
-            crosshairEl.style.display = 'block'; // Показываем прицел на паузе
-        } else {
-            pauseEl.style.display = 'none';
-            crosshairEl.style.display = 'none';  // Скрываем прицел при запуске
-        }
     }
+    if (e.code === 'KeyG') {
+        state.showGrid = !state.showGrid;
+    }
+
+    const pauseEl = document.getElementById('pauseInfo');
+    const crosshairEl = document.getElementById('crosshair');
+    const gridStepInfoEl = document.getElementById('gridStepInfo');
+
+    if (state.isPaused) {
+        pauseEl.style.display = 'inline';
+    } else {
+        pauseEl.style.display = 'none';
+    }
+    
+    if (state.showGrid) {
+        gridStepInfoEl.style.display = 'inline';
+        crosshairEl.style.display = 'block'; 
+    } else {
+        gridStepInfoEl.style.display = 'none';
+        crosshairEl.style.display = 'none'; 
+    }
+
     updateGridStepText();
 });
 
@@ -187,34 +198,43 @@ spawnBtn.addEventListener('click', () => {
 
     // 4. Вызываем уже готовую функцию добавления звезды на GPU
     addNewStar(worldX, worldY, vx, vy, mass);
-    
+
     // Опционально: пишем в консоль для отладки
-    console.log(`Объект создан в мире: X=${worldX.toFixed(1)}, Y=${worldY.toFixed(1)} с макро-скоростью vx=${vx}, vy=${vy}`);
+    console.log(`Объект создан в мире: X=${worldX.toFixed(1)}, Y=${worldY.toFixed(1)} с массой ${mass.toLocaleString('ru-RU')} и скоростью vx=${vx}, vy=${vy}`);
 });
 
 function updateGridStepText() {
     if (!cameraScale) return;
-    
+
     const densityBias = 2.4; // Должно строго совпадать с константой в шейдере
-    
+
     // Аналог формулы на JavaScript
     const log10Scale = Math.log10(cameraScale);
     const power = Math.floor(-log10Scale + densityBias);
     const step = Math.pow(10, power);
-    
+
     // Красиво форматируем числа (например, убираем длинные хвосты у дробных шагов при экстремальном зуме)
     document.getElementById('gridStepVal').textContent = step.toLocaleString('ru-RU');
+}
+
+function updateSidebarInfo() {
+    // Обновляем количество звезд (форматируем с разделением тысяч для красоты)
+    document.getElementById('starCountVal').textContent = state.currentStarCount.toLocaleString('ru-RU');
+
+    // Обновляем значение G (выводим до 2 знаков после запятой, если число дробное)
+    document.getElementById('gConstantVal').textContent = Number(G).toFixed(G % 1 === 0 ? 0 : 2);
 }
 
 // --- Цикл рендеринга ---
 let lastTime = performance.now();
 let accumulator = 0;
+updateSidebarInfo()
 
 function loop(currentTime) {
     let dt = currentTime - lastTime;
     lastTime = currentTime;
-    if (dt > 250) dt = 250; 
-    
+    if (dt > 250) dt = 250;
+
     // Если симуляция на паузе, мы НЕ накапливаем время для физических шагов
     if (!state.isPaused) {
         accumulator += dt;
@@ -233,7 +253,7 @@ function loop(currentTime) {
         gl.uniform1f(gl.getUniformLocation(velProg, "uG"), G);
         gl.uniform1f(gl.getUniformLocation(velProg, "uSoftening"), SOFTENING);
         gl.uniform1f(gl.getUniformLocation(velProg, "uDT"), PHYSICS_DT);
-        
+
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTex[currIdx]);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velTex[currIdx]);
         gl.uniform1i(gl.getUniformLocation(velProg, "uPosTex"), 0);
@@ -244,7 +264,7 @@ function loop(currentTime) {
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, posTex[nextIdx], 0);
         gl.useProgram(posProg);
         gl.uniform1f(gl.getUniformLocation(posProg, "uDT"), PHYSICS_DT);
-        
+
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTex[currIdx]);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velTex[nextIdx]);
         gl.uniform1i(gl.getUniformLocation(posProg, "uPosTex"), 0);
@@ -265,12 +285,12 @@ function loop(currentTime) {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     // --- НОВЫЙ БЛОК: ОТРИСОВКА СЕТКИ НА ПАУЗЕ ---
-    if (state.isPaused) {
+    if (state.showGrid) {
         gl.useProgram(gridProg);
         gl.uniform2f(gl.getUniformLocation(gridProg, "uCameraPan"), cameraX, cameraY);
         gl.uniform1f(gl.getUniformLocation(gridProg, "uCameraScale"), cameraScale);
         gl.uniform2f(gl.getUniformLocation(gridProg, "uResolution"), canvas.width, canvas.height);
-        
+
         // Рисуем один треугольник, развернутый на весь экран (fullscreen quad)
         gl.drawArrays(gl.TRIANGLES, 0, 3);
     }

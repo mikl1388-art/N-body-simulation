@@ -34,7 +34,7 @@
         /* Стили для нового меню управления */
         #menu {
             position: absolute;
-            top: 130px;
+            top: 200px;
             left: 10px;
             color: #fff;
             background: rgba(0, 0, 0, 0.75);
@@ -128,13 +128,17 @@
         <small>
             Даблклик — создать тяжелую звезду<br>
             Колесо — зум, зажать мышкой — двигать<br>
-            <strong>Пробел — Пауза</strong><br>
+            <strong>Пробел — Пауза, G — Показать сетку</strong><br>
             <span id="modeInfo">Режим: Солнечная система</span>
-            <span id="pauseInfo" style="color: #ff4440; display: none;">
-                <br><b>СИМУЛЯЦИЯ НА ПАУЗЕ</b>
-                <br><span style="color: #00aaff; font-size: 0.9em;">Шаг сетки: <span id="gridStepVal">100</span>
-                    у.е.</span>
-            </span>
+            <div style="font-size: 0.9em; color: #ccc; margin-bottom: 3px;">
+                Тел в симуляции: <span id="starCountVal" style="color: #fff; font-weight: bold;">0</span>
+            </div>
+            <div style="font-size: 0.9em; color: #ccc; margin-bottom: 5px;">
+                Гравитационная постоянная (G): <span id="gConstantVal"
+                    style="color: #ffcc00; font-weight: bold;">0</span>
+            </div>
+            <span id="pauseInfo" style="color: #ff4440; display: none;"><b>СИМУЛЯЦИЯ НА ПАУЗЕ</b></span>
+            <br><span id="gridStepInfo" style="color: #00aaff; font-size: 0.9em; display: none;">Шаг сетки: <span id="gridStepVal">100</span> у.е.</span>
         </small>
     </div>
 
@@ -158,7 +162,7 @@
             <input type="range" id="vyInput" min="-250" max="250" value="0" step="5">
         </div>
 
-        <button id="spawnBtn">Создать в центре</button>
+        <button id="spawnBtn">Создать в центре экрана</button>
     </div>
 
     <!-- ПРИЦЕЛ -->

@@ -185,6 +185,13 @@ export function createGradientCanvas() {
             gradient.addColorStop(0.7, '#7b00ff');
             gradient.addColorStop(1.0, '#220044');
             break;
+        case MODES.MULTIPLE_GALAXIES:
+            gradient.addColorStop(0.0, '#ffffff');
+            gradient.addColorStop(0.1, '#e0f7ff');
+            gradient.addColorStop(0.4, '#00aaff');
+            gradient.addColorStop(0.7, '#7b00ff');
+            gradient.addColorStop(1.0, '#220044');
+            break;
         default:
             gradient.addColorStop(0.0, '#ff4400');
             gradient.addColorStop(0.2, '#ffcc00');
