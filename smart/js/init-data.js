@@ -82,13 +82,13 @@ export function initializeData(screenWidth, screenHeight) {
     else if (state.currentMode === MODES.REALGALAXY) {
         document.getElementById('modeInfo').textContent = `Режим: Галактика (${state.currentStarCount} тел)`;
 
-        const MIN_MASS = 0.01;
-        const MAX_MASS = 30.0;
-        const minGalaxyDist = 60.0;
+        const MIN_MASS = 1;
+        const MAX_MASS = 2;
+        const minGalaxyDist = 100.0;
 
         // Оцениваем среднюю массу звезды при функции Салпитера.
         // Так как легких звезд колоссально больше, средняя масса будет около 0.05.
-        const estimatedAvgMass = 0.05;
+        const estimatedAvgMass = (27 / 7) * (Math.pow(MAX_MASS, -0.35) - Math.pow(MIN_MASS, -0.35)) / (Math.pow(MAX_MASS, -1.35) - Math.pow(MIN_MASS, -1.35));;
         const totalDiskMass = state.currentStarCount * estimatedAvgMass;
 
         // 1. Подстраиваем ядро. 

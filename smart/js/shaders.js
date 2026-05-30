@@ -1,11 +1,11 @@
 import { state, MODES } from './config.js';
-export const quadVertexShader = `#version 300 es
+export const quadVertexShader = /* glsl */ `#version 300 es
 void main() {
     vec2 uv = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
     gl_Position = vec4(uv * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
-export const updateVelFragmentShader = `#version 300 es
+export const updateVelFragmentShader = /* glsl */ `#version 300 es
 precision highp float;
 uniform sampler2D uPosTex;
 uniform sampler2D uVelTex;
@@ -41,9 +41,10 @@ void main() {
 
         vec2 d = p2 - p1;
         float distSq = d.x * d.x + d.y * d.y + uSoftening;
-        float dist = sqrt(distSq);
+        float invDist = inversesqrt(distSq); 
+        float invDist3 = invDist * invDist * invDist; 
         
-        float f = (uG * m2) / (distSq * dist);
+        float f = uG * m2 * invDist3;
         forceAcc += f * d;
     }
 
@@ -51,7 +52,7 @@ void main() {
     fragColor = vec4(vel, 0.0, 0.0);
 }`;
 
-export const updatePosFragmentShader = `#version 300 es
+export const updatePosFragmentShader = /* glsl */ `#version 300 es
 precision highp float;
 uniform sampler2D uPosTex;
 uniform sampler2D uVelTex;
@@ -67,7 +68,7 @@ void main() {
     fragColor = vec4(pos, posMass.z, posMass.w);
 }`;
 
-export const renderVertexShader = `#version 300 es
+export const renderVertexShader =  /* glsl */ `#version 300 es
 precision highp float;
 uniform sampler2D uPosTex;
 uniform int uTexWidth;
@@ -94,7 +95,7 @@ void main() {
     gl_PointSize = clamp(3.0 * sqrt(uCameraScale) * massScale, 2.0, 60.0);
 }`;
 
-export const renderFragmentShader = `#version 300 es
+export const renderFragmentShader = /* glsl */ `#version 300 es
 precision highp float;
 in float vNormMass;
 uniform sampler2D uGradientTex;
@@ -106,14 +107,14 @@ void main() {
     fragColor = texture(uGradientTex, vec2(vNormMass, 0.5));
 }`;
 
-export const gridVertexShader = `#version 300 es
+export const gridVertexShader = /* glsl */ `#version 300 es
 void main() {
     // Генерируем full-screen quad из gl_VertexID
     vec2 uv = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
     gl_Position = vec4(uv * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
-export const gridFragmentShader = `#version 300 es
+export const gridFragmentShader = /* glsl */ `#version 300 es
 precision highp float;
 
 uniform vec2 uCameraPan;

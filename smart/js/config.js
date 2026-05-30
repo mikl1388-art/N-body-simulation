@@ -8,7 +8,7 @@ export const MODES = {
     REALGALAXY: 6
 };
 
-export const MAX_STARS = 16384; 
+export const MAX_STARS = 30000; 
 export const TEX_SIZE = Math.ceil(Math.sqrt(MAX_STARS));
 
 // Все глобальные динамические параметры симуляции переносим в единый стейт
@@ -17,7 +17,7 @@ export const state = {
     currentStarCount: 0,
     isPaused: false,
     showGrid: false,
-    timeScale: 5,
+    timeScale: 1,
     
     // Физика (будет перезаписываться функцией ниже)
     G: 0,
@@ -28,7 +28,10 @@ export const state = {
 };
 
 // Функция, которая настраивает стейт под выбранный режим (твоя логика switch)
-export function updatePhysicalConstants(mode) {
+export function updatePhysicalConstants(mode, customStarCount = null) {
+    if (customStarCount == 0){
+        customStarCount = null;
+    }
     state.currentMode = mode;
     state.SOFTENING = (mode === MODES.SOLAR_SYSTEM) ? 0.1 : 5.0;
     state.PHYSICS_DT = (mode === MODES.SOLAR_SYSTEM) ? 0.05 : 0.5;
@@ -38,14 +41,14 @@ export function updatePhysicalConstants(mode) {
     switch (mode) {
         case MODES.SOLAR_SYSTEM:
             state.currentStarCount = 9;
-            state.G = 1000.0;
+            state.G = 5.0;
             break;
         case MODES.STAR_CLOUD:
-            state.currentStarCount = 10000;
+            state.currentStarCount = customStarCount !== null ? customStarCount : 10000;
             state.G = 0.5;
             break;
         case MODES.GALAXY:
-            state.currentStarCount = 14000;
+            state.currentStarCount = customStarCount !== null ? customStarCount : 14000;
             state.G = 0.1;
             break;
         case MODES.EMPTY:
@@ -53,15 +56,15 @@ export function updatePhysicalConstants(mode) {
             state.G = 10.0;
             break;
         case MODES.MULTIPLE_GALAXIES:
-            state.currentStarCount = 12000;
+            state.currentStarCount = customStarCount !== null ? customStarCount : 12000;
             state.G = 0.1;
             break;
         case MODES.RANDOM:
-            state.currentStarCount = 14000;
+            state.currentStarCount = customStarCount !== null ? customStarCount : 14000;
             state.G = 0.5;
             break;
         case MODES.REALGALAXY:
-            state.currentStarCount = 14000;
+            state.currentStarCount = customStarCount !== null ? customStarCount : 14000;
             state.G = 5;
             state.SOFTENING = 30
 

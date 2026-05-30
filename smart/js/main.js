@@ -1,4 +1,4 @@
-import { state, MODES, updatePhysicalConstants, TEX_SIZE, REAL_STEP } from './config.js';
+import { state, MODES, updatePhysicalConstants, TEX_SIZE, REAL_STEP, MAX_STARS } from './config.js';
 import { initializeData } from './init-data.js';
 
 import {
@@ -7,11 +7,49 @@ import {
     gridVertexShader, gridFragmentShader
 } from './shaders.js';
 
+const vxInput = document.getElementById('vxInput');
+const vyInput = document.getElementById('vyInput');
+const vxVal = document.getElementById('vxVal');
+const vyVal = document.getElementById('vyVal');
+
+const spawnBtn = document.getElementById('spawnBtn');
+const massInput = document.getElementById('massInput');
+
+vxInput.addEventListener('input', (e) => vxVal.textContent = e.target.value);
+vyInput.addEventListener('input', (e) => vyVal.textContent = e.target.value);
+
+const starInput = document.getElementById('starInput');
+const starVal = document.getElementById('starVal');
+
+starInput.addEventListener('input', (e) => starVal.textContent = e.target.value);
+
+const speedInput = document.getElementById('speedInput');
+const speedVal = document.getElementById('speedVal');
+
+speedInput.addEventListener('input', (e) => {
+    speedVal.textContent = e.target.value;
+    state.timeScale = parseFloat(e.target.value);
+});
+
+if (state.currentMode === MODES.SOLAR_SYSTEM) {
+        speedInput.max = 1000;
+    } else {
+        speedInput.max = 5;
+    }
+
 function restartSimulation(selectedModeName) {
     const targetMode = MODES[selectedModeName];
+    if (targetMode === MODES.SOLAR_SYSTEM) {
+        speedInput.max = 1000;
+    } else {
+        speedInput.max = 5;
+    }
+    state.timeScale = 1;
+    speedInput.value = 1;
+    speedVal.textContent = '1.0';
     
     // 1. Пересчитываем G, количество звезд и массы под выбранный режим
-    updatePhysicalConstants(targetMode);
+    updatePhysicalConstants(targetMode, parseFloat(starInput.value));
 
     // 2. Перегенерируем стартовые массивы позиций и скоростей
     const { posData, velData } = initializeData(canvas.width, canvas.height);
@@ -30,11 +68,6 @@ function restartSimulation(selectedModeName) {
     const newGradientCanvas = createGradientCanvas(); 
     gl.bindTexture(gl.TEXTURE_2D, gradientTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, newGradientCanvas);
-
-    // 4. Сбрасываем камеру в зависимости от масштаба режима
-    cameraX = canvas.width * 0.5;
-    cameraY = canvas.height * 0.5;
-    cameraScale = (state.currentMode === MODES.SOLAR_SYSTEM) ? 0.2 : 0.05;
 
     // 5. Снимаем с паузы и обновляем UI элементы
     state.isPaused = false;
@@ -58,17 +91,6 @@ document.addEventListener('DOMContentLoaded', () => {
         restartSimulation(modeSelect.value);
     });
 });
-
-const vxInput = document.getElementById('vxInput');
-const vyInput = document.getElementById('vyInput');
-const vxVal = document.getElementById('vxVal');
-const vyVal = document.getElementById('vyVal');
-
-const spawnBtn = document.getElementById('spawnBtn');
-const massInput = document.getElementById('massInput');
-
-vxInput.addEventListener('input', (e) => vxVal.textContent = e.target.value);
-vyInput.addEventListener('input', (e) => vyVal.textContent = e.target.value);
 
 // --- Инициализация WebGL2 ---
 const canvas = document.getElementById('simulationCanvas');
