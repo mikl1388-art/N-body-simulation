@@ -77,10 +77,17 @@ function restartSimulation(selectedModeName) {
     if (typeof updateGridStepText === 'function') updateGridStepText();
 }
 
+function resetCamera(){
+    cameraX = canvas.width * 0.5;
+    cameraY = canvas.height * 0.5;
+    cameraScale = (state.currentMode === MODES.SOLAR_SYSTEM) ? 0.2 : 0.05;
+}
+
 // Инициализация событий при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
     const modeSelect = document.getElementById('modeSelect');
     const restartBtn = document.getElementById('restartBtn');
+    const resetCamBtn = document.getElementById('resetCamBtn');
 
     // Ставим селектор в начальное положение из конфига (RANDOM)
     const currentModeName = Object.keys(MODES).find(key => MODES[key] === state.currentMode);
@@ -89,6 +96,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Вешаем перезапуск на кнопку
     restartBtn.addEventListener('click', () => {
         restartSimulation(modeSelect.value);
+    });
+
+    resetCamBtn.addEventListener('click', () => {
+        resetCamera(modeSelect.value);
     });
 });
 
