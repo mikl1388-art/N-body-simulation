@@ -314,11 +314,17 @@ updateSidebarInfo()
 function loop(currentTime) {
     let dt = currentTime - lastTime;
     lastTime = currentTime;
-    if (dt > 250) dt = 250;
+    let fixedDt = state.PHYSICS_DT;
+    if (dt > 3 * REAL_STEP) dt = 3 * REAL_STEP;
 
     // Если симуляция на паузе, мы НЕ накапливаем время для физических шагов
     if (!state.isPaused) {
+        if (state.timeScale >= 1) {
         accumulator += dt * state.timeScale;
+        } else {
+            accumulator += dt
+            fixedDt = state.PHYSICS_DT * state.timeScale;
+        }
     }
 
     while (accumulator >= REAL_STEP) {
@@ -333,7 +339,7 @@ function loop(currentTime) {
         gl.uniform1i(gl.getUniformLocation(velProg, "uCurrentStarCount"), state.currentStarCount);
         gl.uniform1f(gl.getUniformLocation(velProg, "uG"), state.G);
         gl.uniform1f(gl.getUniformLocation(velProg, "uSoftening"), state.SOFTENING);
-        gl.uniform1f(gl.getUniformLocation(velProg, "uDT"), state.PHYSICS_DT);
+        gl.uniform1f(gl.getUniformLocation(velProg, "uDT"), fixedDt);
 
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTex[currIdx]);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velTex[currIdx]);
@@ -344,7 +350,7 @@ function loop(currentTime) {
         // 2. Считаем ПОЗИЦИИ
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, posTex[nextIdx], 0);
         gl.useProgram(posProg);
-        gl.uniform1f(gl.getUniformLocation(posProg, "uDT"), state.PHYSICS_DT);
+        gl.uniform1f(gl.getUniformLocation(posProg, "uDT"), fixedDt);
 
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posTex[currIdx]);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velTex[nextIdx]);
