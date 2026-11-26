@@ -1,5 +1,4 @@
-To use you simply need to launch index.html
-But the only problem is that browsers don't like launching js from disc, so you'll need to do something about it.<br>
+Since browsers block local JS modules (file://), you need to run [index.html](index.html) using a local server.<br>
 The simpliest solution is to install ["Live Server"](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer)  extension in vscode and launch<br>
 Or you can use python: 
 1. Open your terminal in the project folder (`cd path\to\project`) and run:
